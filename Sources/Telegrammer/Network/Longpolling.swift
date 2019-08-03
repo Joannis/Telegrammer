@@ -56,55 +56,35 @@ public class Longpolling: Connection {
     
     public func stop() {
         running = false
-        worker.eventLoop.execute {
-            self.pollingPromise?.succeed()
-        }
+        self.pollingPromise?.succeed()
     }
     
     private func longpolling(with params: Bot.GetUpdatesParams) {
         var requestBody = params
         do {
-            try self.bot.getUpdates(params: requestBody)
-                .catch { error in
-                    self.retryRequest(with: params, after: error)
-                }
-                .whenSuccess({ (updates) in
-                    if !updates.isEmpty {
-                        if !self.cleanStart || !(self.cleanStart && self.isFirstRequest) {
-                            self.dispatcher.enqueue(updates: updates)
-                        }
-                        if let last = updates.last {
-                            requestBody.offset = last.updateId + 1
-                        }
+            try self.bot.getUpdates(params: requestBody).whenSuccess { updates in
+                if !updates.isEmpty {
+                    if !self.cleanStart || !(self.cleanStart && self.isFirstRequest) {
+                        self.dispatcher.enqueue(updates: updates)
                     }
-                    self.isFirstRequest = false
-                    self.scheduleLongpolling(with: requestBody)
-                })
+                    if let last = updates.last {
+                        requestBody.offset = last.updateId + 1
+                    }
+                }
+                
+                self.isFirstRequest = false
+            }
         } catch {
             log.error(error.logMessage)
-            retryRequest(with: params, after: error)
         }
     }
     
     private func scheduleLongpolling(with params: Bot.GetUpdatesParams) {
-        _ = worker.eventLoop.scheduleTask(in: pollingInterval) { () -> Void in
+        _ = worker.eventLoop.scheduleRepeatedTask(
+            initialDelay: .seconds(0),
+            delay: pollingInterval
+        ) { _ in
             self.longpolling(with: params)
         }
-    }
-    
-    private func retryRequest(with params: Bot.GetUpdatesParams, after error: Error) {
-        guard let maxRetries = bootstrapRetries, connectionRetries < maxRetries else {
-            running = false
-            log.error("Failed connection after \(connectionRetries) retries")
-            pollingPromise?.fail(error: error)
-            return
-        }
-        
-        connectionRetries += 1
-        log.warning("Retry \(connectionRetries) after failed request")
-        
-        _ = worker.eventLoop.scheduleTask(in: pollingInterval, { () -> Void in
-            self.longpolling(with: params)
-        })
     }
 }
