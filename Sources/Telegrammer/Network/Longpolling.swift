@@ -47,7 +47,7 @@ public class Longpolling: Connection {
         _ = worker.eventLoop.submit {
             try self.bot.deleteWebhook().whenSuccess({ (success) in
                 guard success else { return }
-                self.longpolling(with: params)
+                self.scheduleLongpolling(with: params)
             })
         }
         
