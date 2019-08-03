@@ -20,7 +20,7 @@ public class Longpolling: Connection {
     public var bootstrapRetries: Int? = nil
     public var cleanStart: Bool = false
     public var pollingTimeout: Int = 20
-    public var pollingInterval: TimeAmount = TimeAmount.seconds(2)
+    public var pollingInterval: TimeAmount = TimeAmount.seconds(30)
     
     private var lastUpdate: Update?
     private var connectionRetries: Int = 0
